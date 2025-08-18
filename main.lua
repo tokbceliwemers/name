@@ -79,7 +79,7 @@ local Window = Rayfield:CreateWindow({
 -- Home tab for general features
 local MainTab = Window:CreateTab("Home", 4483362458)
 
--- KillAura toggle with safety checks
+-- KillAura toggle
 local killAuraActive = false
 local killAuraConnection = nil
 
@@ -134,13 +134,13 @@ MainTab:CreateToggle({
     end,
 })
 
--- Typed Kill toggle with safety checks
+-- Typed Kill toggle
 local typedKillActive = false
 local typedKillConnection = nil
 local selectedMob = mobList[1] or ""
 local actualMobNames = {}
 
--- Function to map clean names to actual names
+-- Map clean names to actual names
 local function mapMobNames()
     actualMobNames = {}
     for _, mob in ipairs(mobsFolder:GetChildren()) do
@@ -186,7 +186,7 @@ MainTab:CreateToggle({
     end,
 })
 
--- Dynamic mob dropdown with clean names
+-- Mob dropdown with clean names
 local Dropdown = MainTab:CreateDropdown({
     Name = "Mobs",
     Options = mobList,
@@ -198,8 +198,8 @@ local Dropdown = MainTab:CreateDropdown({
     end,
 })
 
--- Create dedicated AutoFarm tab
-local AutoFarmTab = Window:CreateTab("AutoFarm", 123456789) -- Icon ID can be changed
+-- Create AutoFarm tab
+local AutoFarmTab = Window:CreateTab("AutoFarm", 123456789)
 
 -- Auto Reset Toggle
 local autoResetActive = false
@@ -476,6 +476,12 @@ AutoFarmTab:CreateButton({
         })
     end,
 })
+
+-- Status display for mob detection
+AutoFarmTab:CreateLabel("Current Mob Detection:")
+AutoFarmTab:CreateLabel("Undyne: "..(mobDetection.undyne.currentName and cleanMobName(mobDetection.undyne.currentName) or "Not found"))
+AutoFarmTab:CreateLabel("Asriel: "..(mobDetection.asriel.currentName and cleanMobName(mobDetection.asriel.currentName) or "Not found"))
+AutoFarmTab:CreateLabel("Spamton: "..(mobDetection.spamton.currentName and cleanMobName(mobDetection.spamton.currentName) or "Not found"))
 
 -- Update mob lists when mobs change
 mobsFolder.ChildAdded:Connect(function()
