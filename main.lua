@@ -39,8 +39,9 @@ local function detectMobNames()
     for mobType, data in pairs(mobDetection) do
         for _, mob in ipairs(mobsFolder:GetChildren()) do
             local match = true
+            local lowerMobName = string.lower(mob.Name)
             for _, pattern in ipairs(data.patterns) do
-                if not string.find(string.lower(mob.Name), string.lower(pattern)) then
+                if not string.find(lowerMobName, string.lower(pattern)) then
                     match = false
                     break
                 end
@@ -76,7 +77,118 @@ local Window = Rayfield:CreateWindow({
     ConfigurationSaving = { Enabled = false }
 })
 
+-- Home tab for general features
 local MainTab = Window:CreateTab("Home", 4483362458)
+
+-- KillAura toggle with safety checks
+local killAuraActive = false
+local killAuraConnection = nil
+
+local function closestMob()
+    local character = player.Character
+    if not character then return nil end
+    
+    local myRoot = character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+    
+    local closest, minDist = nil, math.huge
+    for _, mobModel in ipairs(mobsFolder:GetChildren()) do
+        local mobRoot = mobModel:FindFirstChild("HumanoidRootPart")
+        if mobRoot then
+            local dist = (mobRoot.Position - myRoot.Position).Magnitude
+            if dist < minDist then
+                minDist, closest = dist, mobModel
+            end
+        end
+    end
+    return closest
+end
+
+MainTab:CreateToggle({
+    Name = "KillAura (Closest Mob)",
+    CurrentValue = false,
+    Flag = "KillAuraToggle",
+    Callback = function(Value)
+        killAuraActive = Value
+        
+        if killAuraActive then
+            if killAuraConnection then
+                killAuraConnection:Disconnect()
+            end
+            
+            killAuraConnection = RunService.Heartbeat:Connect(function()
+                -- Safety check
+                if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                    return
+                end
+                
+                local target = closestMob()
+                if target then
+                    remote:InvokeServer(target)
+                end
+            end)
+        else
+            if killAuraConnection then
+                killAuraConnection:Disconnect()
+                killAuraConnection = nil
+            end
+        end
+    end,
+})
+
+-- Typed Kill toggle with safety checks
+local typedKillActive = false
+local typedKillConnection = nil
+local selectedMob = mobList[1] or ""
+
+MainTab:CreateToggle({
+    Name = "Typed Kill",
+    CurrentValue = false,
+    Flag = "Toggle1",
+    Callback = function(Value)
+        typedKillActive = Value
+        
+        if typedKillActive then
+            if typedKillConnection then
+                typedKillConnection:Disconnect()
+            end
+            
+            typedKillConnection = RunService.Heartbeat:Connect(function()
+                -- Safety check
+                if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                    return
+                end
+                
+                if selectedMob and selectedMob ~= "" then
+                    local target = mobsFolder:FindFirstChild(selectedMob)
+                    if target then
+                        remote:InvokeServer(target)
+                    end
+                end
+            end)
+        else
+            if typedKillConnection then
+                typedKillConnection:Disconnect()
+                typedKillConnection = nil
+            end
+        end
+    end,
+})
+
+-- Dynamic mob dropdown
+local Dropdown = MainTab:CreateDropdown({
+    Name = "Mobs",
+    Options = mobList,
+    CurrentOption = {selectedMob},
+    MultipleOptions = false,
+    Flag = "Dropdown1",
+    Callback = function(Option)
+        selectedMob = Option[1]
+    end,
+})
+
+-- Create dedicated AutoFarm tab
+local AutoFarmTab = Window:CreateTab("AutoFarm", 123456789) -- Icon ID can be changed
 
 -- Auto Reset Toggle
 local autoResetActive = false
@@ -84,7 +196,7 @@ local autoResetConnection = nil
 local lastResetAttack = 0
 local resetAttackCooldown = 0.08
 
-MainTab:CreateToggle({
+AutoFarmTab:CreateToggle({
     Name = "Auto Reset",
     CurrentValue = false,
     Flag = "AutoResetToggle",
@@ -119,7 +231,6 @@ MainTab:CreateToggle({
                             Duration = 5,
                             Image = 4483362458
                         })
-                        getgenv().AutoResetToggle:Set(false)
                     else
                         -- Use dynamically detected Asriel name
                         local asrielName = mobDetection.asriel.currentName
@@ -147,7 +258,7 @@ local goldFarmConnection = nil
 local lastGoldAttack = 0
 local goldAttackCooldown = 0.08
 
-MainTab:CreateToggle({
+AutoFarmTab:CreateToggle({
     Name = "Gold Farm",
     CurrentValue = false,
     Flag = "GoldFarmToggle",
@@ -330,7 +441,7 @@ local function autoFarmUpdate()
     end
 end
 
-local AutoFarmToggle = MainTab:CreateToggle({
+local AutoFarmToggle = AutoFarmTab:CreateToggle({
     Name = "FAST AutoFarm (0 to 300)",
     CurrentValue = false,
     Flag = "AutoFarmToggle",
@@ -362,112 +473,30 @@ local AutoFarmToggle = MainTab:CreateToggle({
     end,
 })
 
--- KillAura toggle with safety checks
-local killAuraActive = false
-local killAuraConnection = nil
-
-local function closestMob()
-    local character = player.Character
-    if not character then return nil end
-    
-    local myRoot = character:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
-    
-    local closest, minDist = nil, math.huge
-    for _, mobModel in ipairs(mobsFolder:GetChildren()) do
-        local mobRoot = mobModel:FindFirstChild("HumanoidRootPart")
-        if mobRoot then
-            local dist = (mobRoot.Position - myRoot.Position).Magnitude
-            if dist < minDist then
-                minDist, closest = dist, mobModel
-            end
-        end
-    end
-    return closest
-end
-
-MainTab:CreateToggle({
-    Name = "KillAura (Closest Mob)",
-    CurrentValue = false,
-    Flag = "KillAuraToggle",
-    Callback = function(Value)
-        killAuraActive = Value
+-- Add a button to manually refresh mob names
+AutoFarmTab:CreateButton({
+    Name = "Refresh Mob Detection",
+    Callback = function()
+        detectMobNames()
+        Rayfield:Notify({
+            Title = "Mob Detection",
+            Content = "Refreshed mob names!",
+            Duration = 3,
+            Image = 4483362458
+        })
         
-        if killAuraActive then
-            if killAuraConnection then
-                killAuraConnection:Disconnect()
-            end
-            
-            killAuraConnection = RunService.Heartbeat:Connect(function()
-                -- Safety check
-                if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-                    return
-                end
-                
-                local target = closestMob()
-                if target then
-                    remote:InvokeServer(target)
-                end
-            end)
-        else
-            if killAuraConnection then
-                killAuraConnection:Disconnect()
-                killAuraConnection = nil
-            end
-        end
+        print("Refreshed mob names:")
+        print("Undyne:", mobDetection.undyne.currentName)
+        print("Asriel:", mobDetection.asriel.currentName)
+        print("Spamton:", mobDetection.spamton.currentName)
     end,
 })
 
--- Typed Kill toggle with safety checks
-local typedKillActive = false
-local typedKillConnection = nil
-local selectedMob = mobList[1] or ""
-
-MainTab:CreateToggle({
-    Name = "Typed Kill",
-    CurrentValue = false,
-    Flag = "Toggle1",
-    Callback = function(Value)
-        typedKillActive = Value
-        
-        if typedKillActive then
-            if typedKillConnection then
-                typedKillConnection:Disconnect()
-            end
-            
-            typedKillConnection = RunService.Heartbeat:Connect(function()
-                -- Safety check
-                if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-                    return
-                end
-                
-                if selectedMob and selectedMob ~= "" then
-                    local target = mobsFolder:FindFirstChild(selectedMob)
-                    if target then
-                        remote:InvokeServer(target)
-                    end
-                end
-            end)
-        else
-            if typedKillConnection then
-                typedKillConnection:Disconnect()
-                typedKillConnection = nil
-            end
-        end
-    end,
-})
-
--- Dynamic mob dropdown
-local Dropdown = MainTab:CreateDropdown({
-    Name = "Mobs",
-    Options = mobList,
-    CurrentOption = {selectedMob},
-    MultipleOptions = false,
-    Flag = "Dropdown1",
-    Callback = function(Option)
-        selectedMob = Option[1]
-    end,
-})
+-- Status display for mob detection
+AutoFarmTab:CreateLabel("Current Mob Detection:")
+AutoFarmTab:CreateLabel("Undyne: "..(mobDetection.undyne.currentName or "Not found"))
+AutoFarmTab:CreateLabel("Asriel: "..(mobDetection.asriel.currentName or "Not found"))
+AutoFarmTab:CreateLabel("Spamton: "..(mobDetection.spamton.currentName or "Not found"))
 
 -- Refresh dropdown when mobs change
 mobsFolder.ChildAdded:Connect(function()
@@ -495,22 +524,3 @@ mobsFolder.ChildRemoved:Connect(function()
     -- Update detected mob names
     detectMobNames()
 end)
-
--- Add a button to manually refresh mob names
-MainTab:CreateButton({
-    Name = "Refresh Mob Detection",
-    Callback = function()
-        detectMobNames()
-        Rayfield:Notify({
-            Title = "Mob Detection",
-            Content = "Refreshed mob names!",
-            Duration = 3,
-            Image = 4483362458
-        })
-        
-        print("Refreshed mob names:")
-        print("Undyne:", mobDetection.undyne.currentName)
-        print("Asriel:", mobDetection.asriel.currentName)
-        print("Spamton:", mobDetection.spamton.currentName)
-    end,
-})
