@@ -27,12 +27,10 @@ local mobDetection = {
     }
 }
 
--- Create mob list
-local mobList = {}
-for _, mob in ipairs(mobsFolder:GetChildren()) do
-    table.insert(mobList, mob.Name)
+-- Clean mob names for display
+local function cleanMobName(name)
+    return name:gsub("%.$", ""):gsub("^%l", string.upper)
 end
-table.sort(mobList)
 
 -- Function to detect mob names dynamically
 local function detectMobNames()
@@ -54,18 +52,19 @@ local function detectMobNames()
     end
 end
 
+-- Create mob list with clean names
+local function getMobList()
+    local mobList = {}
+    for _, mob in ipairs(mobsFolder:GetChildren()) do
+        table.insert(mobList, cleanMobName(mob.Name))
+    end
+    table.sort(mobList)
+    return mobList
+end
+
 -- Initial detection
 detectMobNames()
-
--- Update when mobs change
-mobsFolder.ChildAdded:Connect(detectMobNames)
-mobsFolder.ChildRemoved:Connect(detectMobNames)
-
--- Debug: Print detected mob names
-print("Detected mob names:")
-print("Undyne:", mobDetection.undyne.currentName)
-print("Asriel:", mobDetection.asriel.currentName)
-print("Spamton:", mobDetection.spamton.currentName)
+local mobList = getMobList()
 
 local Window = Rayfield:CreateWindow({
     Name = "Made by YouR | Undertale Classic Rpg",
@@ -117,7 +116,6 @@ MainTab:CreateToggle({
             end
             
             killAuraConnection = RunService.Heartbeat:Connect(function()
-                -- Safety check
                 if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                     return
                 end
@@ -140,6 +138,17 @@ MainTab:CreateToggle({
 local typedKillActive = false
 local typedKillConnection = nil
 local selectedMob = mobList[1] or ""
+local actualMobNames = {}
+
+-- Function to map clean names to actual names
+local function mapMobNames()
+    actualMobNames = {}
+    for _, mob in ipairs(mobsFolder:GetChildren()) do
+        actualMobNames[cleanMobName(mob.Name)] = mob.Name
+    end
+end
+
+mapMobNames()
 
 MainTab:CreateToggle({
     Name = "Typed Kill",
@@ -154,15 +163,17 @@ MainTab:CreateToggle({
             end
             
             typedKillConnection = RunService.Heartbeat:Connect(function()
-                -- Safety check
                 if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                     return
                 end
                 
                 if selectedMob and selectedMob ~= "" then
-                    local target = mobsFolder:FindFirstChild(selectedMob)
-                    if target then
-                        remote:InvokeServer(target)
+                    local actualName = actualMobNames[selectedMob]
+                    if actualName then
+                        local target = mobsFolder:FindFirstChild(actualName)
+                        if target then
+                            remote:InvokeServer(target)
+                        end
                     end
                 end
             end)
@@ -175,7 +186,7 @@ MainTab:CreateToggle({
     end,
 })
 
--- Dynamic mob dropdown
+-- Dynamic mob dropdown with clean names
 local Dropdown = MainTab:CreateDropdown({
     Name = "Mobs",
     Options = mobList,
@@ -212,17 +223,14 @@ AutoFarmTab:CreateToggle({
                 if now - lastResetAttack >= resetAttackCooldown then
                     lastResetAttack = now
                     
-                    -- Safety check for character
                     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                         return
                     end
                     
-                    -- Get player level
                     local leaderstats = player:FindFirstChild("leaderstats")
                     local levelValue = leaderstats and leaderstats:FindFirstChild("Level") and leaderstats.Level.Value or "0"
                     local level = tonumber(levelValue) or 0
                     
-                    -- Stop if level >= 300, else attack Asriel
                     if level >= 300 then
                         autoResetActive = false
                         Rayfield:Notify({
@@ -232,7 +240,6 @@ AutoFarmTab:CreateToggle({
                             Image = 4483362458
                         })
                     else
-                        -- Use dynamically detected Asriel name
                         local asrielName = mobDetection.asriel.currentName
                         if asrielName then
                             local target = mobsFolder:FindFirstChild(asrielName)
@@ -252,7 +259,7 @@ AutoFarmTab:CreateToggle({
     end,
 })
 
--- Gold Farm Toggle - Dynamic Version
+-- Gold Farm Toggle
 local goldFarmActive = false
 local goldFarmConnection = nil
 local lastGoldAttack = 0
@@ -274,12 +281,10 @@ AutoFarmTab:CreateToggle({
                 if now - lastGoldAttack >= goldAttackCooldown then
                     lastGoldAttack = now
                     
-                    -- Safety check for character
                     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                         return
                     end
                     
-                    -- Use dynamically detected Spamton name
                     local spamtonName = mobDetection.spamton.currentName
                     if spamtonName then
                         local target = mobsFolder:FindFirstChild(spamtonName)
@@ -292,7 +297,7 @@ AutoFarmTab:CreateToggle({
             
             Rayfield:Notify({
                 Title = "Gold Farm",
-                Content = "Started farming "..(mobDetection.spamton.currentName or "Spamton Neo").."!",
+                Content = "Started farming Spamton Neo!",
                 Duration = 3,
                 Image = 4483362458
             })
@@ -311,7 +316,7 @@ AutoFarmTab:CreateToggle({
     end,
 })
 
--- FAST AutoFarm (0 to 300) toggle with dynamic names
+-- FAST AutoFarm (0 to 300) toggle
 local autoFarmActive = false
 local autoFarmConnection = nil
 local lastAttack = 0
@@ -323,19 +328,16 @@ local checkCooldown = 0.5
 local targetMob = nil
 local equippedWeapon = nil
 
--- Improved equipment handling
 local function equipWeapon(toolName, key)
     local backpack = player:FindFirstChild("Backpack")
     local character = player.Character
     if not character then return false end
     
-    -- Check if already equipped
     if character:FindFirstChild(toolName) then
         equippedWeapon = toolName
         return true
     end
     
-    -- Check if in backpack
     if backpack and backpack:FindFirstChild(toolName) then
         VirtualInputManager:SendKeyEvent(true, key, false, game)
         task.wait(0.05)
@@ -352,21 +354,17 @@ local function autoFarmUpdate()
     
     local now = tick()
     
-    -- Check level periodically
     if now - lastCheck >= checkCooldown then
         lastCheck = now
         
-        -- Safety check for character
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
             return
         end
         
-        -- Get player stats
         local leaderstats = player:FindFirstChild("leaderstats")
         local levelValue = leaderstats and leaderstats:FindFirstChild("Level") and leaderstats.Level.Value or "0"
         local level = tonumber(levelValue) or 0
         
-        -- Stop at level 300
         if level >= 300 then
             Rayfield:Notify({
                 Title = "AutoFarm",
@@ -384,15 +382,12 @@ local function autoFarmUpdate()
     local character = player.Character
     if not character then return end
     
-    -- Get dynamically detected mob names
     local undyneName = mobDetection.undyne.currentName
     local asrielName = mobDetection.asriel.currentName
     
-    -- Check tools
     local undyneSpear = (backpack and backpack:FindFirstChild("Undyne Spear")) or character:FindFirstChild("Undyne Spear")
     local chaosSaber = (backpack and backpack:FindFirstChild("Chaos Saber")) or character:FindFirstChild("Chaos Saber")
     
-    -- Phase 1: Get Undyne Spear
     if not undyneSpear then
         if undyneName then
             if not targetMob or not targetMob.Parent or targetMob.Parent ~= mobsFolder then
@@ -404,9 +399,7 @@ local function autoFarmUpdate()
                 lastAttack = now
             end
         end
-    -- Phase 2: Get Chaos Saber
     elseif undyneSpear and not chaosSaber then
-        -- Equip spear if needed
         if equippedWeapon ~= "Undyne Spear" then
             equipWeapon("Undyne Spear", Enum.KeyCode.Four)
         end
@@ -421,9 +414,7 @@ local function autoFarmUpdate()
                 lastAttack = now
             end
         end
-    -- Phase 3: Level to 300
     elseif chaosSaber then
-        -- Equip saber if needed
         if equippedWeapon ~= "Chaos Saber" then
             equipWeapon("Chaos Saber", Enum.KeyCode.Five)
         end
@@ -448,7 +439,6 @@ local AutoFarmToggle = AutoFarmTab:CreateToggle({
     Callback = function(Value)
         autoFarmActive = Value
         if autoFarmActive then
-            -- Reset equipment state
             equippedWeapon = nil
             
             Rayfield:Notify({
@@ -473,7 +463,7 @@ local AutoFarmToggle = AutoFarmTab:CreateToggle({
     end,
 })
 
--- Add a button to manually refresh mob names
+-- Refresh Mob Detection button
 AutoFarmTab:CreateButton({
     Name = "Refresh Mob Detection",
     Callback = function()
@@ -484,43 +474,20 @@ AutoFarmTab:CreateButton({
             Duration = 3,
             Image = 4483362458
         })
-        
-        print("Refreshed mob names:")
-        print("Undyne:", mobDetection.undyne.currentName)
-        print("Asriel:", mobDetection.asriel.currentName)
-        print("Spamton:", mobDetection.spamton.currentName)
     end,
 })
 
--- Status display for mob detection
-AutoFarmTab:CreateLabel("Current Mob Detection:")
-AutoFarmTab:CreateLabel("Undyne: "..(mobDetection.undyne.currentName or "Not found"))
-AutoFarmTab:CreateLabel("Asriel: "..(mobDetection.asriel.currentName or "Not found"))
-AutoFarmTab:CreateLabel("Spamton: "..(mobDetection.spamton.currentName or "Not found"))
-
--- Refresh dropdown when mobs change
+-- Update mob lists when mobs change
 mobsFolder.ChildAdded:Connect(function()
-    -- Update mob list
-    mobList = {}
-    for _, mob in ipairs(mobsFolder:GetChildren()) do
-        table.insert(mobList, mob.Name)
-    end
-    table.sort(mobList)
+    mobList = getMobList()
+    mapMobNames()
     Dropdown:Refresh(mobList, {selectedMob})
-    
-    -- Update detected mob names
     detectMobNames()
 end)
 
 mobsFolder.ChildRemoved:Connect(function()
-    -- Update mob list
-    mobList = {}
-    for _, mob in ipairs(mobsFolder:GetChildren()) do
-        table.insert(mobList, mob.Name)
-    end
-    table.sort(mobList)
+    mobList = getMobList()
+    mapMobNames()
     Dropdown:Refresh(mobList, {selectedMob})
-    
-    -- Update detected mob names
     detectMobNames()
 end)
