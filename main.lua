@@ -27,38 +27,36 @@ local mobDetection = {
     }
 }
 
--- Create mob list
+-- Create mob list (initial fill)
 local mobList = {}
-for _, mob in ipairs(mobsFolder:GetChildren()) do
-    table.insert(mobList, mob.Name)
+local function rebuildMobList()
+    mobList = {}
+    for _, mob in ipairs(mobsFolder:GetChildren()) do
+        table.insert(mobList, mob.Name)
+    end
+    table.sort(mobList)
 end
-table.sort(mobList)
+rebuildMobList()
 
 -- Function to detect mob names dynamically
 local function detectMobNames()
     for mobType, data in pairs(mobDetection) do
+        mobDetection[mobType].currentName = nil
         for _, mob in ipairs(mobsFolder:GetChildren()) do
-            local match = true
+            local lowerName = string.lower(mob.Name)
             for _, pattern in ipairs(data.patterns) do
-                if not string.find(string.lower(mob.Name), string.lower(pattern)) then
-                    match = false
+                if string.find(lowerName, string.lower(pattern)) then
+                    mobDetection[mobType].currentName = mob.Name
                     break
                 end
             end
-            if match then
-                mobDetection[mobType].currentName = mob.Name
-                break
-            end
+            if mobDetection[mobType].currentName then break end
         end
     end
 end
 
 -- Initial detection
 detectMobNames()
-
--- Update when mobs change
-mobsFolder.ChildAdded:Connect(detectMobNames)
-mobsFolder.ChildRemoved:Connect(detectMobNames)
 
 -- Debug: Print detected mob names
 print("Detected mob names:")
@@ -94,22 +92,22 @@ MainTab:CreateToggle({
             if autoResetConnection then
                 autoResetConnection:Disconnect()
             end
-            
+
             autoResetConnection = RunService.Heartbeat:Connect(function()
                 local now = tick()
                 if now - lastResetAttack >= resetAttackCooldown then
                     lastResetAttack = now
-                    
+
                     -- Safety check for character
                     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                         return
                     end
-                    
+
                     -- Get player level
                     local leaderstats = player:FindFirstChild("leaderstats")
                     local levelValue = leaderstats and leaderstats:FindFirstChild("Level") and leaderstats.Level.Value or "0"
                     local level = tonumber(levelValue) or 0
-                    
+
                     -- Stop if level >= 300, else attack Asriel
                     if level >= 300 then
                         autoResetActive = false
@@ -141,64 +139,7 @@ MainTab:CreateToggle({
     end,
 })
 
--- Gold Farm Toggle - Dynamic Version
-local goldFarmActive = false
-local goldFarmConnection = nil
-local lastGoldAttack = 0
-local goldAttackCooldown = 0.08
-
-MainTab:CreateToggle({
-    Name = "Gold Farm",
-    CurrentValue = false,
-    Flag = "GoldFarmToggle",
-    Callback = function(Value)
-        goldFarmActive = Value
-        if goldFarmActive then
-            if goldFarmConnection then
-                goldFarmConnection:Disconnect()
-            end
-            
-            goldFarmConnection = RunService.Heartbeat:Connect(function()
-                local now = tick()
-                if now - lastGoldAttack >= goldAttackCooldown then
-                    lastGoldAttack = now
-                    
-                    -- Safety check for character
-                    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-                        return
-                    end
-                    
-                    -- Use dynamically detected Spamton name
-                    local spamtonName = mobDetection.spamton.currentName
-                    if spamtonName then
-                        local target = mobsFolder:FindFirstChild(spamtonName)
-                        if target then
-                            remote:InvokeServer(target)
-                        end
-                    end
-                end
-            end)
-            
-            Rayfield:Notify({
-                Title = "Gold Farm",
-                Content = "Started farming "..(mobDetection.spamton.currentName or "Spamton Neo").."!",
-                Duration = 3,
-                Image = 4483362458
-            })
-        else
-            if goldFarmConnection then
-                goldFarmConnection:Disconnect()
-                goldFarmConnection = nil
-            end
-            Rayfield:Notify({
-                Title = "Gold Farm",
-                Content = "Stopped farming!",
-                Duration = 3,
-                Image = 4483362458
-            })
-        end
-    end,
-})
+-- NOTE: Gold Farm option removed per request
 
 -- FAST AutoFarm (0 to 300) toggle with dynamic names
 local autoFarmActive = false
@@ -217,13 +158,13 @@ local function equipWeapon(toolName, key)
     local backpack = player:FindFirstChild("Backpack")
     local character = player.Character
     if not character then return false end
-    
+
     -- Check if already equipped
     if character:FindFirstChild(toolName) then
         equippedWeapon = toolName
         return true
     end
-    
+
     -- Check if in backpack
     if backpack and backpack:FindFirstChild(toolName) then
         VirtualInputManager:SendKeyEvent(true, key, false, game)
@@ -232,29 +173,29 @@ local function equipWeapon(toolName, key)
         equippedWeapon = toolName
         return true
     end
-    
+
     return false
 end
 
 local function autoFarmUpdate()
     if not autoFarmActive then return end
-    
+
     local now = tick()
-    
+
     -- Check level periodically
     if now - lastCheck >= checkCooldown then
         lastCheck = now
-        
+
         -- Safety check for character
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
             return
         end
-        
+
         -- Get player stats
         local leaderstats = player:FindFirstChild("leaderstats")
         local levelValue = leaderstats and leaderstats:FindFirstChild("Level") and leaderstats.Level.Value or "0"
         local level = tonumber(levelValue) or 0
-        
+
         -- Stop at level 300
         if level >= 300 then
             Rayfield:Notify({
@@ -268,26 +209,26 @@ local function autoFarmUpdate()
             return
         end
     end
-    
+
     local backpack = player:FindFirstChild("Backpack")
     local character = player.Character
     if not character then return end
-    
+
     -- Get dynamically detected mob names
     local undyneName = mobDetection.undyne.currentName
     local asrielName = mobDetection.asriel.currentName
-    
+
     -- Check tools
     local undyneSpear = (backpack and backpack:FindFirstChild("Undyne Spear")) or character:FindFirstChild("Undyne Spear")
     local chaosSaber = (backpack and backpack:FindFirstChild("Chaos Saber")) or character:FindFirstChild("Chaos Saber")
-    
+
     -- Phase 1: Get Undyne Spear
     if not undyneSpear then
         if undyneName then
             if not targetMob or not targetMob.Parent or targetMob.Parent ~= mobsFolder then
                 targetMob = mobsFolder:FindFirstChild(undyneName)
             end
-            
+
             if targetMob and now - lastAttack >= attackCooldown then
                 remote:InvokeServer(targetMob)
                 lastAttack = now
@@ -299,12 +240,12 @@ local function autoFarmUpdate()
         if equippedWeapon ~= "Undyne Spear" then
             equipWeapon("Undyne Spear", Enum.KeyCode.Four)
         end
-        
+
         if asrielName then
             if not targetMob or not targetMob.Parent or targetMob.Parent ~= mobsFolder then
                 targetMob = mobsFolder:FindFirstChild(asrielName)
             end
-            
+
             if targetMob and now - lastAttack >= attackCooldown then
                 remote:InvokeServer(targetMob)
                 lastAttack = now
@@ -316,12 +257,12 @@ local function autoFarmUpdate()
         if equippedWeapon ~= "Chaos Saber" then
             equipWeapon("Chaos Saber", Enum.KeyCode.Five)
         end
-        
+
         if asrielName then
             if not targetMob or not targetMob.Parent or targetMob.Parent ~= mobsFolder then
                 targetMob = mobsFolder:FindFirstChild(asrielName)
             end
-            
+
             if targetMob and now - lastAttack >= attackCooldown then
                 remote:InvokeServer(targetMob)
                 lastAttack = now
@@ -339,7 +280,7 @@ local AutoFarmToggle = MainTab:CreateToggle({
         if autoFarmActive then
             -- Reset equipment state
             equippedWeapon = nil
-            
+
             Rayfield:Notify({
                 Title = "AutoFarm",
                 Content = "Started FAST farming!",
@@ -369,10 +310,10 @@ local killAuraConnection = nil
 local function closestMob()
     local character = player.Character
     if not character then return nil end
-    
+
     local myRoot = character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
-    
+
     local closest, minDist = nil, math.huge
     for _, mobModel in ipairs(mobsFolder:GetChildren()) do
         local mobRoot = mobModel:FindFirstChild("HumanoidRootPart")
@@ -392,18 +333,18 @@ MainTab:CreateToggle({
     Flag = "KillAuraToggle",
     Callback = function(Value)
         killAuraActive = Value
-        
+
         if killAuraActive then
             if killAuraConnection then
                 killAuraConnection:Disconnect()
             end
-            
+
             killAuraConnection = RunService.Heartbeat:Connect(function()
                 -- Safety check
                 if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                     return
                 end
-                
+
                 local target = closestMob()
                 if target then
                     remote:InvokeServer(target)
@@ -429,18 +370,18 @@ MainTab:CreateToggle({
     Flag = "Toggle1",
     Callback = function(Value)
         typedKillActive = Value
-        
+
         if typedKillActive then
             if typedKillConnection then
                 typedKillConnection:Disconnect()
             end
-            
+
             typedKillConnection = RunService.Heartbeat:Connect(function()
                 -- Safety check
                 if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
                     return
                 end
-                
+
                 if selectedMob and selectedMob ~= "" then
                     local target = mobsFolder:FindFirstChild(selectedMob)
                     if target then
@@ -457,7 +398,7 @@ MainTab:CreateToggle({
     end,
 })
 
--- Dynamic mob dropdown
+-- Dynamic mob dropdown (initial options from initial rebuild)
 local Dropdown = MainTab:CreateDropdown({
     Name = "Mobs",
     Options = mobList,
@@ -469,37 +410,18 @@ local Dropdown = MainTab:CreateDropdown({
     end,
 })
 
--- Refresh dropdown when mobs change
-mobsFolder.ChildAdded:Connect(function()
-    -- Update mob list
-    mobList = {}
-    for _, mob in ipairs(mobsFolder:GetChildren()) do
-        table.insert(mobList, mob.Name)
-    end
-    table.sort(mobList)
-    Dropdown:Refresh(mobList, {selectedMob})
-    
-    -- Update detected mob names
-    detectMobNames()
-end)
+-- NOTE: removed automatic refresh on ChildAdded/ChildRemoved.
+-- Mob list will now refresh ONLY when pressing the "Refresh Mob Detection" button below.
 
-mobsFolder.ChildRemoved:Connect(function()
-    -- Update mob list
-    mobList = {}
-    for _, mob in ipairs(mobsFolder:GetChildren()) do
-        table.insert(mobList, mob.Name)
-    end
-    table.sort(mobList)
-    Dropdown:Refresh(mobList, {selectedMob})
-    
-    -- Update detected mob names
-    detectMobNames()
-end)
-
--- Add a button to manually refresh mob names
+-- Add a button to manually refresh mob names AND the dropdown list
 MainTab:CreateButton({
     Name = "Refresh Mob Detection",
     Callback = function()
+        -- Rebuild mob list and refresh dropdown options
+        rebuildMobList()
+        Dropdown:Refresh(mobList, {selectedMob})
+
+        -- Update detected mob names
         detectMobNames()
         Rayfield:Notify({
             Title = "Mob Detection",
@@ -507,10 +429,68 @@ MainTab:CreateButton({
             Duration = 3,
             Image = 4483362458
         })
-        
+
         print("Refreshed mob names:")
         print("Undyne:", mobDetection.undyne.currentName)
         print("Asriel:", mobDetection.asriel.currentName)
         print("Spamton:", mobDetection.spamton.currentName)
+    end,
+})
+
+-- Godmode toggle (client-side enforcement; server-side damage may still apply)
+local godmodeActive = false
+local godmodeConnection = nil
+
+MainTab:CreateToggle({
+    Name = "Godmode",
+    CurrentValue = false,
+    Flag = "GodmodeToggle",
+    Callback = function(Value)
+        godmodeActive = Value
+        if godmodeActive then
+            if godmodeConnection then
+                godmodeConnection:Disconnect()
+            end
+            godmodeConnection = RunService.Heartbeat:Connect(function()
+                if not player.Character then return end
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    pcall(function()
+                        -- enforce very large health locally; note: server-side damage may override this
+                        humanoid.MaxHealth = 1e9
+                        humanoid.Health = humanoid.MaxHealth
+                        -- try to prevent ragdoll if possible
+                        humanoid.PlatformStand = false
+                    end)
+                end
+            end)
+            Rayfield:Notify({
+                Title = "Godmode",
+                Content = "Godmode activated (client-side).",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            if godmodeConnection then
+                godmodeConnection:Disconnect()
+                godmodeConnection = nil
+            end
+            -- attempt to restore reasonable defaults
+            if player.Character then
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    pcall(function()
+                        humanoid.MaxHealth = 100
+                        humanoid.Health = humanoid.MaxHealth
+                    end)
+                end
+            end
+            Rayfield:Notify({
+                Title = "Godmode",
+                Content = "Godmode deactivated.",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
     end,
 })
