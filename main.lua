@@ -415,7 +415,7 @@ local Dropdown = MainTab:CreateDropdown({
 
 -- Add a button to manually refresh mob names AND the dropdown list
 MainTab:CreateButton({
-    Name = "Refresh Mob Detection",
+    Name = "Refresh Mob",
     Callback = function()
         -- Rebuild mob list and refresh dropdown options
         rebuildMobList()
